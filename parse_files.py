@@ -17,51 +17,60 @@ class yaDiskParserSpider(scrapy.Spider):
         host="127.0.0.1",
         user="root",
         password="root",
-        database="yadi"
+        database="scrapy"
     )
     
     def start_requests(self):
-        with open('D:\\Projects\\Python\\yadisk\\files.txt') as f:
+        with open('C:\\Projects\\python\\yadisk-bulk-extractor\\yadi-check-results\\clean.txt') as f:
             disk_list = f.read().splitlines()
         
-        for disk in disk_list:
+        for disk in disk_list[0:1]:
             yield scrapy.Request(url=disk, callback=self.parse_disk, meta={'handle_httpstatus_all': True, 'offset': 0, 'disk_url': disk, 'main_url': disk})
             
     def parse_disk(self, response):
-        json_obj = json.loads(response.css("script#store-prefetch ::text").extract_first())
+
+        isFolder = response.xpath("//div[contains(concat(' ',normalize-space(@class),' '),' folder-content ')]").get()
         
-        temp_offset = response.meta['offset']
-        disk_url = response.meta['disk_url']
-        
-        #print(disk_url + ": " + "Opening...")
-        
-        temp_sk = json_obj['environment']['sk']
-        
-        if self.cookie == '':
-            self.cookie = response.headers.getlist('Set-Cookie')[0].decode("utf-8").split(";")[0].split("=")
-        
-        temp_hash = ''
-        disk_name = ''
-        
-        try:
-            disk_name = response.meta['disk_name']
-        except:
-            pass
-        
-        try:
-            temp_hash = response.meta['hash']
-        except:
-            for resource in list(json_obj['resources'])[0:1]:
-                temp_hash = json_obj['resources'][resource]['hash']
-        
-        yield scrapy.Request(
-                method='POST', 
-                callback=self.parse_json,
-                meta={'handle_httpstatus_all': True, 'is_again': False, 'disk_name': disk_name, 'offset': temp_offset, 'hash': temp_hash, 'sk': temp_sk, 'disk_url': disk_url, 'main_url':response.meta['main_url']}, 
-                url='https://yadi.sk/public/api/fetch-list', 
-                body=urllib.parse.quote(json.dumps({"hash":temp_hash,"offset":temp_offset,"withSizes":'true',"sk":temp_sk,"options":{"hasExperimentVideoWithoutPreview":'true'}})), 
-                headers={"Content-Type": "text/plain", "Cookies": self.cookie}
-        )
+        if isFolder is None:
+            json_obj = json.loads(response.css("script#store-prefetch ::text").extract_first())
+            item = list(json_obj['resources'].values())[0]
+            
+            print(item['name'])
+        else:
+            json_obj = json.loads(response.css("script#store-prefetch ::text").extract_first())
+            
+            temp_offset = response.meta['offset']
+            disk_url = response.meta['disk_url']
+            
+            #print(disk_url + ": " + "Opening...")
+            
+            temp_sk = json_obj['environment']['sk']
+            
+            if self.cookie == '':
+                self.cookie = response.headers.getlist('Set-Cookie')[0].decode("utf-8").split(";")[0].split("=")
+            
+            temp_hash = ''
+            disk_name = ''
+            
+            try:
+                disk_name = response.meta['disk_name']
+            except:
+                pass
+            
+            try:
+                temp_hash = response.meta['hash']
+            except:
+                for resource in list(json_obj['resources'])[0:1]:
+                    temp_hash = json_obj['resources'][resource]['hash']
+            
+            yield scrapy.Request(
+                    method='POST', 
+                    callback=self.parse_json,
+                    meta={'handle_httpstatus_all': True, 'is_again': False, 'disk_name': disk_name, 'offset': temp_offset, 'hash': temp_hash, 'sk': temp_sk, 'disk_url': disk_url, 'main_url':response.meta['main_url']}, 
+                    url='https://yadi.sk/public/api/fetch-list', 
+                    body=urllib.parse.quote(json.dumps({"hash":temp_hash,"offset":temp_offset,"withSizes":'true',"sk":temp_sk,"options":{"hasExperimentVideoWithoutPreview":'true'}})), 
+                    headers={"Content-Type": "text/plain", "Cookies": self.cookie}
+            )
 
     
     def parse_json(self,response):
