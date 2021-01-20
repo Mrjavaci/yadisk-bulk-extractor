@@ -6,18 +6,16 @@ import sys
 import mysql.connector
 class yaDiskParserSpider(scrapy.Spider):
     name = 'yaDiskParser'
-    activeCookie = ''
-    offsets = []
-    reqs = []
-    cookie = ''
     
-    disk_data = []
+    last_sk = None
+    last_hash = None
+    last_cookie = None
     
     conn = mysql.connector.connect(
         host="127.0.0.1",
         user="root",
         password="root",
-        database="scrapy"
+        database="yadi"
     )
 
     #########################################################################################################
@@ -29,26 +27,36 @@ class yaDiskParserSpider(scrapy.Spider):
             return False
 
     def get_sk(self, response):
-        json_obj = json.loads(response.css("script#store-prefetch ::text").extract_first())
+        try:
+            self.last_sk = json.loads(response.css("script#store-prefetch ::text").extract_first())['environment']['sk']
+        except:
+            pass
         
-        return json_obj['environment']['sk']
+        return self.last_sk
 
     def get_hash(self, response):
-        json_obj = json.loads(response.css("script#store-prefetch ::text").extract_first())
-        temp_hash = ''
+        try:
+            json_obj = json.loads(response.css("script#store-prefetch ::text").extract_first())
 
-        for resource in list(json_obj['resources'])[0:1]:
-            temp_hash = json_obj['resources'][resource]['hash']
-
-        return temp_hash
+            for resource in list(json_obj['resources'])[0:1]:
+                self.last_hash = json_obj['resources'][resource]['hash']
+        except:
+            pass
+        
+        return self.last_hash
     
     def get_cookie(self, response):
-        return response.headers.getlist('Set-Cookie')[0].decode("utf-8").split(";")[0].split("=")
+        try:
+            self.last_cookie = response.headers.getlist('Set-Cookie')[0].decode("utf-8").split(";")[0].split("=")
+        except:
+            pass
+        
+        return self.last_cookie
 
     #########################################################################################################
     
     def start_requests(self):
-        with open('C:\\Projects\\python\\yadisk-bulk-extractor\\yadi-check-results\\clean.txt') as f:
+        with open('.\\yadi-check-results\\clean.txt') as f:
             disk_list = f.read().splitlines()
         
         for disk in disk_list:
@@ -56,8 +64,8 @@ class yaDiskParserSpider(scrapy.Spider):
             
     def parse_disk(self, response):
         if self.is_folder(response):
-            print(self.get_cookie(response))
-            pass
+            print(self.get_sk(response) + " " + self.get_hash(response))
         else:
-            json_obj = json.loads(response.css("script#store-prefetch ::text").extract_first())
-            item = list(json_obj['resources'].values())[0]
+            #json_obj = json.loads(response.css("script#store-prefetch ::text").extract_first())
+            #item = list(json_obj['resources'].values())[0]
+            print(self.get_sk(response) + " " + self.get_hash(response))
