@@ -26,13 +26,16 @@ class yaDiskParserSpider(scrapy.Spider):
         else:
             print("\n\ndosya bulunamadı\n\n")
     def parse_disk(self, response):
-        error = response.xpath("//div[contains(concat(' ',normalize-space(@class),' '),' error ')]").get()
-
-        if error is None:
-            with open("C:\\Projects\\python\\yadisk-bulk-extractor\\yadi-check-results\\clean.txt", 'a') as f:
-                f.write(response.url + "\n")
-            pass
+        if response.status == 301:
+            yield scrapy.Request(url=response.headers['location'].decode('utf-8'), callback=self.parse_disk, meta={'handle_httpstatus_all': True})
         else:
-            with open("C:\\Projects\\python\\yadisk-bulk-extractor\\yadi-check-results\\error.txt", 'a') as f:
-                f.write(response.url + "\n")
-            pass
+            error = response.xpath("//div[contains(concat(' ',normalize-space(@class),' '),' error ')]").get()
+
+            if error is None:
+                with open("C:\\Projects\\python\\yadisk-bulk-extractor\\yadi-check-results\\clean.txt", 'a') as f:
+                    f.write(response.url + "\n")
+                pass
+            else:
+                with open("C:\\Projects\\python\\yadisk-bulk-extractor\\yadi-check-results\\error.txt", 'a') as f:
+                    f.write(response.url + "\n")
+                pass
