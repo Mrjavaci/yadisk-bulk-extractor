@@ -2,6 +2,7 @@ import scrapy
 import json
 import mysql.connector
 import urllib.parse
+import time
 class yaDiskParserSpider(scrapy.Spider):
     name = 'yaDiskParser'
     
@@ -25,7 +26,7 @@ class yaDiskParserSpider(scrapy.Spider):
         return self.last_cookie
 
     def handle_file(self, shit):
-        print(shit)
+        print(shit['name'])
 
     #########################################################################################################
     
@@ -34,9 +35,7 @@ class yaDiskParserSpider(scrapy.Spider):
             disk_list = f.read().splitlines()
         
         for disk in disk_list:
-
             yield scrapy.Request(url=disk, callback=self.parse_url, meta={'handle_httpstatus_all': True, 'active_main_disk': disk})
-        
     
     def parse_url(self, response):
         json_obj = json.loads(response.css("script#store-prefetch ::text").extract_first())
@@ -44,7 +43,7 @@ class yaDiskParserSpider(scrapy.Spider):
         
         if len(resources) is 1:
             for resource in resources:
-                print(resource['name'])
+                self.handle_file(resource)
         else:
             yield scrapy.Request(
                 method='POST', 
@@ -76,7 +75,8 @@ class yaDiskParserSpider(scrapy.Spider):
             
             for resource in resources:
                 if resource['type'] == 'file':
-                    print(resource['name'])
+                    self.handle_file(resource)
+                    time.sleep(1)
                 else:
                     yield scrapy.Request(
                         method='POST', 
@@ -89,10 +89,10 @@ class yaDiskParserSpider(scrapy.Spider):
             
             if is_completed is False:
                 yield scrapy.Request(
-                        method='POST', 
-                        callback=self.fetch_list,
-                        meta={'handle_httpstatus_all': True, 'offset': response.meta['offset'] + 20, 'hash': response.meta['hash'], 'sk': response.meta['sk']}, 
-                        url='https://yadi.sk/public/api/fetch-list', 
-                        body=urllib.parse.quote(json.dumps({'offset': response.meta['offset'] + 20, 'hash': response.meta['hash'], 'sk': response.meta['sk'], "withSizes":'true',"options":{"hasExperimentVideoWithoutPreview":'true'}})), 
-                        headers={"Content-Type": "text/plain", "Cookies": self.get_cookie(response)}
-                    )
+                    method='POST', 
+                    callback=self.fetch_list,
+                    meta={'handle_httpstatus_all': True, 'offset': response.meta['offset'] + 20, 'hash': response.meta['hash'], 'sk': response.meta['sk']}, 
+                    url='https://yadi.sk/public/api/fetch-list', 
+                    body=urllib.parse.quote(json.dumps({'offset': response.meta['offset'] + 20, 'hash': response.meta['hash'], 'sk': response.meta['sk'], "withSizes":'true',"options":{"hasExperimentVideoWithoutPreview":'true'}})), 
+                    headers={"Content-Type": "text/plain", "Cookies": self.get_cookie(response)}
+                )
