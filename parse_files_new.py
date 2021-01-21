@@ -1,9 +1,8 @@
 import scrapy
 import json
-import urllib.parse
-import subprocess
-import sys
+import time
 import mysql.connector
+import urllib.parse
 class yaDiskParserSpider(scrapy.Spider):
     name = 'yaDiskParser'
     activeCookie = ''
@@ -21,12 +20,6 @@ class yaDiskParserSpider(scrapy.Spider):
     )
 
     #########################################################################################################
-
-    def is_folder(self, response):
-        if response.xpath("//div[contains(concat(' ',normalize-space(@class),' '),' folder-content ')]").get() is not None:
-            return True
-        else:
-            return False
 
     def get_sk(self, response):
         json_obj = json.loads(response.css("script#store-prefetch ::text").extract_first())
@@ -52,12 +45,59 @@ class yaDiskParserSpider(scrapy.Spider):
             disk_list = f.read().splitlines()
         
         for disk in disk_list:
-            yield scrapy.Request(url=disk, callback=self.parse_disk, meta={'handle_httpstatus_all': True, 'offset': 0, 'disk_url': disk, 'main_url': disk})
+            yield scrapy.Request(url=disk, callback=self.parse_disk, meta={'handle_httpstatus_all': True})
             
     def parse_disk(self, response):
-        if self.is_folder(response):
-            print(self.get_cookie(response))
-            pass
-        else:
             json_obj = json.loads(response.css("script#store-prefetch ::text").extract_first())
-            item = list(json_obj['resources'].values())[0]
+            res = list(json_obj['resources'].values())
+            
+            if len(res) is not 1 and res[0]['completed'] is False:
+                yield scrapy.Request(
+                        method='POST', 
+                        callback=self.parse_json,
+                        meta={'handle_httpstatus_all': True, 'offset': 0, 'hash': res[0]['hash'], 'sk': json_obj['environment']['sk']}, 
+                        url='https://yadi.sk/public/api/fetch-list', 
+                        body=urllib.parse.quote(json.dumps({'offset': 0, 'hash': res[0]['hash'], 'sk': json_obj['environment']['sk'], "withSizes":'true',"options":{"hasExperimentVideoWithoutPreview":'true'}})), 
+                        headers={"Content-Type": "text/plain", "Cookies": self.cookie}
+                )
+            else:
+                res.pop(0)
+                self.handle_resources(res)
+                #resource(s) will be writed to sql
+                #print(response.url + " true aga: " + str(len(res)))
+                pass
+
+    def parse_json(self, response):
+        try:
+            newSk = json.loads(response.body.decode('utf-8'))['newSk']
+            yield scrapy.Request(
+                method='POST', 
+                callback=self.parse_json,
+                meta={'handle_httpstatus_all': True, 'offset': response.meta['offset'], 'hash': response.meta['hash'], 'sk': newSk}, 
+                url='https://yadi.sk/public/api/fetch-list', 
+                body=urllib.parse.quote(json.dumps({'offset': response.meta['offset'], 'hash': response.meta['hash'], 'sk': newSk, "withSizes":'true',"options":{"hasExperimentVideoWithoutPreview":'true'}})), 
+                headers={"Content-Type": "text/plain", "Cookies": self.cookie}
+            )
+        except:
+            res_body = json.loads(response.body.decode('utf-8'))
+            is_completed = res_body['completed']
+            resources = res_body['resources']
+            resources.pop(0)
+            self.handle_resources(resources)
+            
+            if is_completed is False:
+                yield scrapy.Request(
+                    method='POST', 
+                    callback=self.parse_json,
+                    meta={'handle_httpstatus_all': True, 'offset': response.meta['offset'] + 20, 'hash': response.meta['hash'], 'sk': response.meta['sk']}, 
+                    url='https://yadi.sk/public/api/fetch-list', 
+                    body=urllib.parse.quote(json.dumps({'offset': response.meta['offset'] + 20, 'hash': response.meta['hash'], 'sk': response.meta['sk'], "withSizes":'true',"options":{"hasExperimentVideoWithoutPreview":'true'}})), 
+                    headers={"Content-Type": "text/plain", "Cookies": self.cookie}
+                )
+
+    def handle_resources(self, resources):
+        for resource in resources:
+            if resource['type'] == 'dir':
+                yield scrapy.Request(url='https://disk.yandex.com.tr/public?hash=' + resource['path'], callback=self.parse_disk, meta={'handle_httpstatus_all': True})
+            else:
+                print(resource['name'])
