@@ -3,6 +3,9 @@ import json
 import mysql.connector
 import urllib
 import wget 
+import os 
+
+from mega import Mega
 
 class getDownloadsSpider(scrapy.Spider):
     name = 'getDownloadsSpider'
@@ -15,6 +18,9 @@ class getDownloadsSpider(scrapy.Spider):
     )
     
     last_cookie = None
+    
+    mega = Mega()
+    m = mega.login("dejavuonthamic@gmail.com", "0F8&xmIuEevYvy7n5")
 
     #########################################################################################################
 
@@ -35,7 +41,7 @@ class getDownloadsSpider(scrapy.Spider):
         )
 
         cursor = conn.cursor()
-        cursor.execute("SELECT * FROM `scrapy`.`yadisk` WHERE `safe` = 1 AND `ext` = 'pdf' AND `filename` LIKE '% - %' AND `filename` ORDER BY filename ASC, length(filename) DESC, filesize DESC LIMIT 10")
+        cursor.execute("SELECT * FROM `scrapy`.`yadisk` WHERE `safe` = 1 AND `ext` = 'pdf' AND `filename` LIKE '% - %' AND `filename` ORDER BY filename ASC, length(filename) DESC, filesize DESC LIMIT 3500 OFFSET 0")
         rows = cursor.fetchall()
         for book in rows:
             yield scrapy.Request(url=book[7], callback=self.parse_url, meta={'handle_httpstatus_all': True, 'name': book[3], 'hash': book[8]})
@@ -67,6 +73,13 @@ class getDownloadsSpider(scrapy.Spider):
                 headers={"Content-Type": "text/plain", "Cookies": self.get_cookie(response)}
             )
         else:
+            folder = self.mega.find(str(response.meta['name'][0]).lower())
+            if folder is None:
+                self.mega.create_folder(str(response.meta['name'][0]).lower())
+                folder = self.mega.find(str(response.meta['name'][0]).lower())
+            
             file_url = res_body['data']['url']
             testfile = urllib.request.urlretrieve(file_url, response.meta['name'])
-            print(testfile)
+            file = self.mega.upload(response.meta['name'], folder[0])
+            os.remove(response.meta['name'])
+            print(response.meta['name'] + " uploaded")
