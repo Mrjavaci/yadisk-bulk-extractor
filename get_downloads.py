@@ -4,8 +4,8 @@ import mysql.connector
 import urllib
 import wget 
 import os 
-
-from mega import Mega
+import threading
+import requests
 
 class getDownloadsSpider(scrapy.Spider):
     name = 'getDownloadsSpider'
@@ -19,10 +19,21 @@ class getDownloadsSpider(scrapy.Spider):
     
     last_cookie = None
     
-    mega = Mega()
-    m = mega.login("dejavuonthamic@gmail.com", "0F8&xmIuEevYvy7n5")
+    #mega = Mega()
+    #m = mega.login("dejavuonthamic@gmail.com", "0F8&xmIuEevYvy7n5")
 
     #########################################################################################################
+
+    def download(self, link, filelocation):
+        r = requests.get(link, stream=True)
+        with open(filelocation, 'wb') as f:
+            for chunk in r.iter_content(1024):
+                if chunk:
+                    f.write(chunk)
+
+    def createNewDownloadThread(self, link, filelocation):
+        download_thread = threading.Thread(target=self.download, args=(link,filelocation))
+        download_thread.start()
 
     def get_cookie(self, response):
         try:
@@ -41,10 +52,10 @@ class getDownloadsSpider(scrapy.Spider):
         )
 
         cursor = conn.cursor()
-        cursor.execute("SELECT * FROM `scrapy`.`yadisk` WHERE `safe` = 1 AND `ext` = 'pdf' AND `filename` LIKE '% - %' AND `filename` ORDER BY filename ASC, length(filename) DESC, filesize DESC LIMIT 3500 OFFSET 0")
+        cursor.execute("select * from yadisk where filename like '% - %' and (downloaded is null or downloaded = 0) and safe = 1 order by filename asc, length(filename) desc, filesize desc")
         rows = cursor.fetchall()
         for book in rows:
-            yield scrapy.Request(url=book[7], callback=self.parse_url, meta={'handle_httpstatus_all': True, 'id': book[0], 'name': book[3], 'hash': book[8]})
+            yield scrapy.Request(url=book[6], callback=self.parse_url, meta={'handle_httpstatus_all': True, 'id': book[0], 'name': book[2], 'hash': book[7]})
     
     def parse_url(self, response):
         json_obj = json.loads(response.css("script#store-prefetch ::text").extract_first())
@@ -73,19 +84,20 @@ class getDownloadsSpider(scrapy.Spider):
                 headers={"Content-Type": "text/plain", "Cookies": self.get_cookie(response)}
             )
         else:
-            try:
-                folder = self.mega.find(str(response.meta['name'][0]).lower())
-                if folder is None:
-                    self.mega.create_folder(str(response.meta['name'][0]).lower())
-                    
-                folder = self.mega.find(str(response.meta['name'][0]).lower())
+                if not os.path.exists('./books/' + str(response.meta['name'][0]).lower()):
+                    os.makedirs('./books/' + str(response.meta['name'][0]).lower())
+                #folder = self.mega.find(str(response.meta['name'][0]).lower())
+                #if folder is None:
+                #    self.mega.create_folder(str(response.meta['name'][0]).lower())
+                #    
+                #folder = self.mega.find(str(response.meta['name'][0]).lower())
                 file_url = res_body['data']['url']
-                testfile = urllib.request.urlretrieve(file_url, response.meta['name'])
-                file = self.mega.upload(response.meta['name'], folder[0])
-                os.remove(response.meta['name'])
+                self.createNewDownloadThread(file_url, './books/' + str(response.meta['name'][0]).lower() + '/' + response.meta['name'])
+                #testfile = urllib.request.urlretrieve(file_url, './books/' + str(response.meta['name'][0]).lower() + '/' + response.meta['name'])
+                #wget.download(file_url, out='./books/' + str(response.meta['name'][0]).lower())
+                #file = self.mega.upload(response.meta['name'], folder[0])
+                #os.remove(response.meta['name'])
                 cursor = self.conn.cursor()
-                cursor.execute("UPDATE yadisk SET downloaded = 1 WHERE id = " + response.meta['id'])
+                cursor.execute("UPDATE yadi SET downloaded = 1 WHERE id = '" + response.meta['id'] + "'")
                 self.conn.commit()
-                print(response.meta['name'] + " uploaded")
-            except:
-                pass
+                print(response.meta['name'] + " downloaded")
