@@ -8,7 +8,7 @@ for dir in listdir(mypath):
         file_path = mypath + "\\" + dir + "\\" + file
         name_arr = file.split(' - ')
         if len(name_arr) > 2:
-            if name_arr[0] == name_arr[1]:
+            if name_arr[0].lower() == name_arr[1].lower():
                 name_arr.pop(0)
                 new_file_path = mypath + "\\" + dir + "\\" + " - ".join(name_arr)
                 if os.path.exists(new_file_path):
