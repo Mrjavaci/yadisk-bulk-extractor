@@ -36,23 +36,51 @@ class BookManager:
 
     def get_books(self) -> List[Book]:
         start_time = datetime.now()
+        query = 'SELECT * FROM '+self.table_name+" WHERE type = 'PDF' LIMIT 500"
         print("__________\n")
-        print("Query started: " + 'SELECT * FROM '+self.table_name+" WHERE type = 'PDF'")
+        print("Query started: " + query)
         
         cursor = self.conn.cursor()
-        cursor.execute('SELECT * FROM '+self.table_name+" WHERE type = 'PDF'")
+        cursor.execute(query)
         result = cursor.fetchall()
 
         books = list()
 
         for book in result:
-            #if file is pdf
-            if book[9] == 'PDF':
-                books.append(self.set_book(book))
+            self.set_book(book)
         
         end_time = datetime.now()
         print('Query finished, duration: {}'.format(end_time - start_time))
         print("__________\n")
-        time.sleep(2)
 
         return books
+
+    def update_book(self, book: Book) -> bool:
+        query = "UPDATE "+self.table_name+" SET "
+
+        query = query + "name = %s, ekitap_id = %s, "
+        query = query + "parsed_name = %s, year = %s, "
+        query = query + "author = %s, categories = %s, "
+        query = query + "publisher = %s, language = %s, "
+        query = query + "pagesize = %s, filesize = %s, "
+        query = query + "download_url = %s, type = %s "
+
+        query = query + "WHERE id = %s"
+        
+        cursor = self.conn.cursor()
+        try:
+            cursor.execute(query, (
+                book.name, book.ekitap_id,
+                book.parsed_name, book.year,
+                book.author, book.categories,
+                book.publisher, book.language,
+                book.pagesize, book.filesize,
+                book.download_url, book.type,
+                book.id
+            ))
+            
+            self.conn.commit()
+            
+            return True
+        except:
+            return False
