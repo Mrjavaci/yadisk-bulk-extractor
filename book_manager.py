@@ -1,6 +1,8 @@
 from book import Book
 import mysql.connector
 from typing import List
+from datetime import datetime
+import time
 
 class BookManager:
     def __init__(self, options=None):
@@ -33,13 +35,24 @@ class BookManager:
         return b
 
     def get_books(self) -> List[Book]:
+        start_time = datetime.now()
+        print("__________\n")
+        print("Query started: " + 'SELECT * FROM '+self.table_name+" WHERE type = 'PDF'")
+        
         cursor = self.conn.cursor()
-        cursor.execute('SELECT * FROM '+self.table_name+' LIMIT 1')
+        cursor.execute('SELECT * FROM '+self.table_name+" WHERE type = 'PDF'")
         result = cursor.fetchall()
 
         books = list()
 
         for book in result:
-            books.append(self.set_book(book))
+            #if file is pdf
+            if book[9] == 'PDF':
+                books.append(self.set_book(book))
         
+        end_time = datetime.now()
+        print('Query finished, duration: {}'.format(end_time - start_time))
+        print("__________\n")
+        time.sleep(2)
+
         return books
