@@ -36,7 +36,7 @@ class BookManager:
 
     def get_books(self) -> List[Book]:
         start_time = datetime.now()
-        query = 'SELECT * FROM '+self.table_name+" WHERE type = 'PDF' LIMIT 500"
+        query = 'SELECT * FROM '+self.table_name+" WHERE type = 'PDF'"
         print("__________\n")
         print("Query started: " + query)
         
@@ -47,7 +47,7 @@ class BookManager:
         books = list()
 
         for book in result:
-            self.set_book(book)
+            books.append(self.set_book(book))
         
         end_time = datetime.now()
         print('Query finished, duration: {}'.format(end_time - start_time))
